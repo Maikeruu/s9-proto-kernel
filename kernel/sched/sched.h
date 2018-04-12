@@ -1754,7 +1754,19 @@ static inline unsigned long __cpu_util(int cpu, int delta)
 		util = div_u64(util, walt_ravg_window);
 	}
 #endif
+<<<<<<< HEAD
 	util = cpu_rq(cpu)->cfs.avg.util_avg + cpu_rq(cpu)->rt.avg.util_avg;
+=======
+	util = cfs_rq->avg.util_avg;
+	
+	if (sched_feat(UTIL_EST))
+		util = max_t(unsigned long, util, READ_ONCE(cfs_rq->avg.util_est.enqueued));
+	
+	util += cpu_rq(cpu)->rt.avg.util_avg;
+#ifdef CONFIG_SCHED_WALT
+util_walt:
+#endif
+>>>>>>> 7d0fad7cb... sched: sync ehmp with new WALT and PELT changes
 	delta += util;
 	if (delta < 0)
 		return 0;
@@ -1809,6 +1821,7 @@ static inline void set_cfs_cpu_capacity(int cpu, bool request,
 	}
 }
 
+<<<<<<< HEAD
 static inline void set_rt_cpu_capacity(int cpu, bool request,
 				       unsigned long capacity)
 {
@@ -1816,6 +1829,18 @@ static inline void set_rt_cpu_capacity(int cpu, bool request,
 		per_cpu(cpu_sched_capacity_reqs, cpu).rt = capacity;
 		update_cpu_capacity_request(cpu, request);
 	}
+=======
+	if (sched_feat(UTIL_EST))
+		util = max_t(unsigned long, util, 
+				READ_ONCE(cpu_rq(cpu)->cfs.avg.util_est.enqueued));
+	
+	util += cpu_rq(cpu)->rt.avg.util_avg;
+#ifdef CONFIG_SCHED_WALT
+util_walt:
+#endif
+
+	return (util >= capacity) ? capacity : util;
+>>>>>>> 7d0fad7cb... sched: sync ehmp with new WALT and PELT changes
 }
 
 static inline void set_dl_cpu_capacity(int cpu, bool request,
