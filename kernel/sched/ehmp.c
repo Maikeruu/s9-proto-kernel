@@ -19,13 +19,6 @@
 
 unsigned long task_util(struct task_struct *p)
 {
-#ifdef CONFIG_SCHED_WALT
-	if (!walt_disabled && sysctl_sched_use_walt_task_util) {
-		unsigned long demand = p->ravg.demand;
-		return (demand << SCHED_CAPACITY_SHIFT) / walt_ravg_window;
-	}
-#endif
-
 	if (rt_task(p))
 		return p->rt.avg.util_avg;
 	else
@@ -44,7 +37,15 @@ static inline struct sched_entity *se_of(struct sched_avg *sa)
 
 #define entity_is_cfs_rq(se)	(se->my_q)
 #define entity_is_task(se)	(!se->my_q)
-#define LOAD_AVG_MAX		47742
+#ifdef CONFIG_PELT_HALFLIFE_32
+#define LOAD_AVG_MAX 47742 /* maximum possible load avg */
+#endif
+#ifdef CONFIG_PELT_HALFLIFE_16
+#define LOAD_AVG_MAX 24152
+#endif
+#ifdef CONFIG_PELT_HALFLIFE_8
+#define LOAD_AVG_MAX 12337
+#endif
 
 static unsigned long maxcap_val = 1024;
 static int maxcap_cpu = 0;
@@ -608,69 +609,26 @@ static void mark_shallowest_cpu(int cpu, unsigned int *min_exit_latency,
 
 	cpumask_set_cpu(cpu, shallowest_cpus);
 }
+static int check_migration_task(struct task_struct *p)
+{
+	if (rt_task(p))
+		return !p->rt.avg.last_update_time;
+	else
+		return !p->se.avg.last_update_time;
+}
 
 static int cpu_util_wake(int cpu, struct task_struct *p)
 {
-	struct cfs_rq *cfs_rq;
-	unsigned long util;
-
-#ifdef CONFIG_SCHED_WALT
-	/*
-	 * WALT does not decay idle tasks in the same manner
-	 * as PELT, so it makes little sense to subtract task
-	 * utilization from cpu utilization. Instead just use
-	 * cpu_util for this case.
-	 */
-	if (!walt_disabled && sysctl_sched_use_walt_cpu_util &&
-	    p->state == TASK_WAKING)
-		return cpu_util(cpu);
-#endif
+	unsigned long util, capacity;
 
 	/* Task has no contribution or is new */
-	if (cpu != task_cpu(p) || !READ_ONCE(p->se.avg.last_update_time))
+	if (cpu != task_cpu(p) || check_migration_task(p))
 		return cpu_util(cpu);
 
-	cfs_rq = &cpu_rq(cpu)->cfs;
-	util = READ_ONCE(cfs_rq->avg.util_avg);
+	capacity = capacity_orig_of(cpu);
+	util = max_t(long, cpu_util(cpu) - task_util(p), 0);
 
-	/* Discount task's blocked util from CPU's util */
-	util -= min_t(unsigned int, util, task_util(p));
-
-	/*
-	 * Covered cases:
-	 *
-	 * a) if *p is the only task sleeping on this CPU, then:
-	 *      cpu_util (== task_util) > util_est (== 0)
-	 *    and thus we return:
-	 *      cpu_util_wake = (cpu_util - task_util) = 0
-	 *
-	 * b) if other tasks are SLEEPING on this CPU, which is now exiting
-	 *    IDLE, then:
-	 *      cpu_util >= task_util
-	 *      cpu_util > util_est (== 0)
-	 *    and thus we discount *p's blocked utilization to return:
-	 *      cpu_util_wake = (cpu_util - task_util) >= 0
-	 *
-	 * c) if other tasks are RUNNABLE on that CPU and
-	 *      util_est > cpu_util
-	 *    then we use util_est since it returns a more restrictive
-	 *    estimation of the spare capacity on that CPU, by just
-	 *    considering the expected utilization of tasks already
-	 *    runnable on that CPU.
-	 *
-	 * Cases a) and b) are covered by the above code, while case c) is
-	 * covered by the following code when estimated utilization is
-	 * enabled.
-	 */
-	if (sched_feat(UTIL_EST))
-		util = max_t(unsigned long, util, READ_ONCE(cfs_rq->avg.util_est.enqueued));
-
-	/*
-	 * Utilization (estimated) can exceed the CPU capacity, thus let's
-	 * clamp to the maximum CPU capacity to ensure consistency with
-	 * the cpu_util call.
-	 */
-	return min(util, capacity_orig_of(cpu));
+	return (util >= capacity) ? capacity : util;
 }
 
 static int find_group_boost_target(struct task_struct *p)

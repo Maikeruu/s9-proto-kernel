@@ -730,10 +730,11 @@ static unsigned long task_h_load(struct task_struct *p);
  * Note: The tables runnable_avg_yN_inv and runnable_avg_yN_sum are
  * dependent on this value.
  */
+#define LOAD_AVG_MAX_N 345 
 #ifdef CONFIG_PELT_HALFLIFE_32
 #define LOAD_AVG_PERIOD 32
 #define LOAD_AVG_MAX 47742 /* maximum possible load avg */
-#define LOAD_AVG_MAX_N 345 /* number of full periods to produce LOAD_AVG_MAX */
+/* number of full periods to produce LOAD_AVG_MAX */
 #endif
 #ifdef CONFIG_PELT_HALFLIFE_16
 #define LOAD_AVG_PERIOD 16
@@ -743,8 +744,7 @@ static unsigned long task_h_load(struct task_struct *p);
 #define LOAD_AVG_PERIOD 8
 #define LOAD_AVG_MAX 12337
 #endif
-
-
+#define LOAD_AVG_MAX_N 345 
 /* Give new sched_entity start runnable values to heavy its load in infant time */
 void init_entity_runnable_average(struct sched_entity *se)
 {
@@ -776,8 +776,7 @@ void init_entity_runnable_average(struct sched_entity *se)
 	sa->util_sum = 0;
 	/* when this task enqueue'ed, it will contribute to its cfs_rq's load_avg */
 
-	if (sched_feat(EXYNOS_HMP_OM))
-		ontime_new_entity_load(current, se);
+	ontime_new_entity_load(current, se);
 }
 
 static inline u64 cfs_rq_clock_task(struct cfs_rq *cfs_rq);
@@ -3346,8 +3345,7 @@ static inline void update_load_avg(struct sched_entity *se, int flags)
 		ptr = (void *)&(task_of(se)->ravg);
 #endif
 		trace_sched_load_avg_task(task_of(se), &se->avg, ptr);
-		if (sched_feat(EXYNOS_HMP_OM))
-			ontime_trace_task_info(task_of(se));
+		ontime_trace_task_info(task_of(se));
 	}
 }
 
@@ -3532,6 +3530,12 @@ static void check_spread(struct cfs_rq *cfs_rq, struct sched_entity *se)
 #endif
 }
 
+static unsigned int Lgentle_fair_sleepers = 1;
+void relay_gfs(unsigned int gfs)
+{
+	Lgentle_fair_sleepers = gfs;
+}
+
 static void
 place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 {
@@ -3554,7 +3558,7 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 		 * Halve their sleep time's effect, to allow
 		 * for a gentler effect of sleepers:
 		 */
-		if (sched_feat(GENTLE_FAIR_SLEEPERS))
+		if (Lgentle_fair_sleepers)
 			thresh >>= 1;
 
 		vruntime -= thresh;
@@ -6158,7 +6162,7 @@ boosted_task_util(struct task_struct *task)
 	return util + margin;
 }
 
-static int cpu_util_wake(int cpu, struct task_struct *p);
+int cpu_util_wake(int cpu, struct task_struct *p);
 
 /*
  * find_idlest_group finds and returns the least busy CPU group within the
@@ -7812,7 +7816,7 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 #ifdef CONFIG_CGROUP_SCHEDTUNE
 	if (smaller_cpu_capacity(env->dst_cpu, env->src_cpu) &&
 	    (schedtune_prefer_perf(p) ||
-	     (sched_feat(EXYNOS_HMP_OM) && !ontime_can_migration(p, env->dst_cpu))))
+	     !ontime_can_migration(p, env->dst_cpu)))
 		return 0;
 #endif
 
@@ -10240,8 +10244,7 @@ static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 	nohz_idle_balance(this_rq, idle);
 	rebalance_domains(this_rq, idle);
 
-	if (sched_feat(EXYNOS_HMP_OM))
-		ontime_migration();
+	ontime_migration();
 	schedtune_group_util_update();
 }
 
