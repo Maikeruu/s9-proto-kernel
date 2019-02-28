@@ -733,9 +733,7 @@ static unsigned long task_h_load(struct task_struct *p);
 #ifdef CONFIG_PELT_HALFLIFE_32
 #define LOAD_AVG_PERIOD 32
 #define LOAD_AVG_MAX 47742 /* maximum possible load avg */
-<<<<<<< HEAD
 #define LOAD_AVG_MAX_N 345 /* number of full periods to produce LOAD_AVG_MAX */
-=======
 #endif
 #ifdef CONFIG_PELT_HALFLIFE_16
 #define LOAD_AVG_PERIOD 16
@@ -745,7 +743,7 @@ static unsigned long task_h_load(struct task_struct *p);
 #define LOAD_AVG_PERIOD 8
 #define LOAD_AVG_MAX 12337
 #endif
->>>>>>> 74c7cd5ae... BACKPORT: sched/fair: Add support to tune PELT ramp/decay timings
+
 
 /* Give new sched_entity start runnable values to heavy its load in infant time */
 void init_entity_runnable_average(struct sched_entity *se)
@@ -5514,7 +5512,6 @@ static unsigned long __cpu_norm_util(int cpu, unsigned long capacity, int delta)
 	return (util << SCHED_CAPACITY_SHIFT)/capacity;
 }
 
-<<<<<<< HEAD
 static int calc_util_delta(struct energy_env *eenv, int cpu)
 {
 	if (cpu == eenv->src_cpu)
@@ -5523,9 +5520,8 @@ static int calc_util_delta(struct energy_env *eenv, int cpu)
 		return eenv->util_delta;
 	return 0;
 }
-=======
+
 int cpu_util_wake(int cpu, struct task_struct *p);
->>>>>>> 74c7cd5ae... BACKPORT: sched/fair: Add support to tune PELT ramp/decay timings
 
 static
 unsigned long group_max_util(struct energy_env *eenv)
