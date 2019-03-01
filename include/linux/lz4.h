@@ -17,6 +17,7 @@
  * Provides the maximum size that LZ4 may output in a "worst case" scenario
  * (input data not compressible)
  */
+<<<<<<< HEAD
 
 static inline size_t lz4_compressbound(size_t isize)
 
@@ -134,6 +135,9 @@ typedef union {
  */
 static inline int LZ4_compressBound(size_t isize)
 >>>>>>> 00cce0ca6... lz4: Optimize memory usage
+=======
+static inline size_t lz4_compressbound(size_t isize)
+>>>>>>> parent of 0190fc8c4... lz4: Optimize memory usage
 {
 	return isize + (isize / 255) + 16;
 }
